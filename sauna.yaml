@@ -1,38 +1,115 @@
+# =====================================================================
+#  Sauna controller - ESPHome config
+#  Sauna panel: YCS18U10 display/keypad board (2009.11.30)
+#  ESP board:   ESP32 DevKit (esp32dev / ESP32-WROOM)
+#
+#  Put this file AND secrets.yaml in the same folder (your ESPHome
+#  config folder). Wiring for every pin is in WIRING.md.
+#
+#  Buttons:  ESP GPIO -> 330R -> PhotoMOS relay (AQY212 / TLP222A)
+#            relay output across the two pads of the sauna button.
+#            GPIO HIGH = button pressed.
+#  LEDs:     PC817 opto (+1k series) across the sauna's LED,
+#            opto output pulls the ESP pin LOW when the LED is lit.
+# =====================================================================
+
 esphome:
   name: sauna
-  on_boot:
-    priority: -100
-    then:
-      - delay: 5s
-      - button.press: btn_power   # auto power-on at startup
+  friendly_name: Sauna
+  # No on_boot power press on purpose: the sauna must never start
+  # by itself after a reboot or power cut.
 
 esp32:
   board: esp32dev
 
-wifi:
-  ssid: "YOUR_SSID"
-  password: "YOUR_PASSWORD"
+logger:
 
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # If Wi-Fi fails, the ESP opens its own hotspot "Sauna Fallback".
+  ap:
+    ssid: "Sauna Fallback"
+    password: !secret sauna__ap_password
+
+captive_portal:
+
+api:
+  encryption:
+    key: !secret sauna__api_key
+
+ota:
+  - platform: esphome
+    password: !secret sauna__ota_password
+
+# Browser control at http://sauna.local (user: admin)
 web_server:
   port: 80
-api:
-ota:
-  platform: esphome
+  auth:
+    username: admin
+    password: !secret sauna__web_password
 
+# ---------------------------------------------------------------------
+#  Outputs -> PhotoMOS relays across the sauna buttons
+#  The SWx for Power/Temp/Time must be confirmed on your panel
+#  (see WIRING.md, "Find your buttons").
+# ---------------------------------------------------------------------
 output:
-  - {platform: gpio, pin: GPIO16, id: o_power}
-  - {platform: gpio, pin: GPIO17, id: o_tup}
-  - {platform: gpio, pin: GPIO18, id: o_tdn}
-  - {platform: gpio, pin: GPIO19, id: o_hup}
-  - {platform: gpio, pin: GPIO21, id: o_hdn}
-  - {platform: gpio, pin: GPIO22, id: o_in}
-  - {platform: gpio, pin: GPIO23, id: o_out}
+  - {platform: gpio, pin: GPIO16, id: o_power}   # Power   -> SW? (one of SW2/3/6/8/9)
+  - {platform: gpio, pin: GPIO17, id: o_tup}     # Temp +  -> SW?
+  - {platform: gpio, pin: GPIO18, id: o_tdn}     # Temp -  -> SW?
+  - {platform: gpio, pin: GPIO19, id: o_hup}     # Time +  -> SW?
+  - {platform: gpio, pin: GPIO21, id: o_hdn}     # Time -  -> SW?
+  - {platform: gpio, pin: GPIO22, id: o_in}      # Inside light  -> SW4 (IN_LAMP)
+  - {platform: gpio, pin: GPIO23, id: o_out}     # Outside light -> SW5 (OUT_LAMP)
 
 button:
-  - {platform: output, name: "Power",   id: btn_power, output: o_power, duration: 400ms}
-  - {platform: output, name: "Temp +",  output: o_tup, duration: 300ms}
-  - {platform: output, name: "Temp -",  output: o_tdn, duration: 300ms}
-  - {platform: output, name: "Time +",  output: o_hup, duration: 300ms}
-  - {platform: output, name: "Time -",  output: o_hdn, duration: 300ms}
+  - {platform: output, name: "Power",         id: btn_power, output: o_power, duration: 400ms}
+  - {platform: output, name: "Temp +",        output: o_tup, duration: 300ms}
+  - {platform: output, name: "Temp -",        output: o_tdn, duration: 300ms}
+  - {platform: output, name: "Time +",        output: o_hup, duration: 300ms}
+  - {platform: output, name: "Time -",        output: o_hdn, duration: 300ms}
   - {platform: output, name: "Inside light",  output: o_in,  duration: 300ms}
   - {platform: output, name: "Outside light", output: o_out, duration: 300ms}
+
+# ---------------------------------------------------------------------
+#  Inputs <- PC817 optos across the sauna's LEDs
+#  The LEDs are multiplexed (flicker fast); delayed_off smooths it.
+# ---------------------------------------------------------------------
+binary_sensor:
+  - platform: gpio
+    id: sauna_on
+    name: "Sauna power"
+    pin: {number: GPIO25, mode: INPUT_PULLUP, inverted: true}   # green POWER LED
+    filters:
+      - delayed_off: 200ms
+  - platform: gpio
+    id: sauna_heating
+    name: "Sauna heating"
+    pin: {number: GPIO26, mode: INPUT_PULLUP, inverted: true}   # red HEAT LED
+    filters:
+      - delayed_off: 200ms
+
+# Real on/off switch: only presses Power when the state actually differs.
+switch:
+  - platform: template
+    name: "Sauna"
+    icon: mdi:fire
+    lambda: return id(sauna_on).state;
+    turn_on_action:
+      - if:
+          condition:
+            binary_sensor.is_off: sauna_on
+          then:
+            - button.press: btn_power
+    turn_off_action:
+      - if:
+          condition:
+            binary_sensor.is_on: sauna_on
+          then:
+            - button.press: btn_power
+
+sensor:
+  - platform: wifi_signal
+    name: "Sauna WiFi signal"
+    update_interval: 60s
