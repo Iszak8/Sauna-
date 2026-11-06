@@ -64,7 +64,7 @@ output:
   - {platform: gpio, pin: GPIO23, id: o_out}     # Outside light -> SW5 (OUT_LAMP)
 
 button:
-  - {platform: output, name: "Power",         id: btn_power, output: o_power, duration: 2s}
+  - {platform: output, name: "Power",         id: btn_power, output: o_power, duration: 400ms}
   - {platform: output, name: "Temp +",        output: o_tup, duration: 300ms}
   - {platform: output, name: "Temp -",        output: o_tdn, duration: 300ms}
   - {platform: output, name: "Time +",        output: o_hup, duration: 300ms}
