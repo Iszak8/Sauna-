@@ -47,7 +47,7 @@ web_server:
   port: 80
   auth:
     username: admin
-    password: !secret sauna__web_password
+    password: !secret sauna__meap
 
 # ---------------------------------------------------------------------
 #  Outputs -> PhotoMOS relays across the sauna buttons
