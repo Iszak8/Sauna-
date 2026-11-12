@@ -114,3 +114,29 @@ sensor:
   - platform: wifi_signal
     name: "Sauna WiFi signal"
     update_interval: 60s
+
+# ---------------------------------------------------------------------
+#  Temperature capture mode (temporary)
+#  Listens to the panel's display bus on CN2 and logs raw frames so the
+#  digits can be decoded. Read-only: it never drives these pins.
+#    CN2 DATA -> 10k -> GPIO32 (20k GPIO32 -> GND)
+#    CN2 CLK  -> 10k -> GPIO33 (20k GPIO33 -> GND)
+#    CN2 GND  -> ESP GND (only after confirming the panel logic is SELV)
+#  Pulled down, so it stays quiet until wired. Watch the logs in
+#  Device Builder; a summary prints every 5 seconds.
+# ---------------------------------------------------------------------
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [display_sniffer]
+
+display_sniffer:
+  data_pin:
+    number: GPIO32
+    mode: {input: true, pulldown: true}
+  clock_pin:
+    number: GPIO33
+    mode: {input: true, pulldown: true}
+  frame_gap: 50us
+  report_interval: 5s
