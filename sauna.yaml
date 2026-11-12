@@ -44,6 +44,7 @@ ota:
 
 # Browser control at http://sauna.local (user: admin)
 web_server:
+  js_include: sauna-hold.js
   port: 80
   auth:
     username: admin
